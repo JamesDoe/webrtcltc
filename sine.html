@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Sine Tone Player</title>
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+</head>
+<body>
+  <div id="app">
+    <h1>Sine Tone Player</h1>
+    <p>Frequency: {{ frequency }} Hz</p>
+    <input type="range" v-model="frequency" min="60" max="20000">
+    <button @click="playTone">Play Tone</button>
+    <button @click="stopTone">Stop Tone</button>
+    <canvas ref="waveformCanvas" width="800" height="200"></canvas>
+  </div>
+
+  <script>
+    const app = new Vue({
+      el: '#app',
+      data: {
+        frequency: 440,
+	analyser: null,
+        oscillator: null,
+        canvasContext: null,
+      },
+      mounted() {
+        this.canvasContext = this.$refs.waveformCanvas.getContext('2d');
+      },
+      methods: {
+        playTone() {
+          if (this.oscillator) {
+            this.stopTone();
+          }
+
+          const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          this.oscillator = audioContext.createOscillator();
+          this.oscillator.frequency.value = this.frequency;
+
+	this.analyser = audioContext.createAnalyser();
+	this.analyser.fftSize = 1024;
+	const bufferLength = this.analyser.fftSize;
+	console.log("buffer length is: " + bufferLength);
+
+          // Connect the oscillator to the destination
+          this.oscillator.connect(audioContext.destination);
+
+          // Draw the waveform
+          this.drawWaveform();
+
+          // Start the oscillator
+          this.oscillator.start();
+        },
+        stopTone() {
+          if (this.oscillator) {
+            this.oscillator.stop();
+            this.oscillator.disconnect();
+            this.oscillator = null;
+          }
+        },
+        drawWaveform() {
+          if (!this.oscillator || !this.canvasContext) {
+            return;
+          }
+
+          const canvas = this.$refs.waveformCanvas;
+          const context = this.canvasContext;
+
+          const width = canvas.width;
+          const height = canvas.height;
+
+          const bufferLength = 1024;
+          const dataArray = new Float32Array(bufferLength);
+
+          const draw = () => {
+            const drawVisual = requestAnimationFrame(draw);
+	this.analyser.getFloatTimeDomainData(dataArray);		
+            //this.oscillator.getFloatTimeDomainData(dataArray);
+
+            context.fillStyle = 'rgb(255, 255, 255)';
+            context.fillRect(0, 0, width, height);
+
+            context.lineWidth = 2;
+            context.strokeStyle = 'rgb(0, 0, 0)';
+
+            context.beginPath();
+
+            const sliceWidth = width * 1.0 / bufferLength;
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i++) {
+              const v = dataArray[i];
+              const y = (v + 1) * height / 2;
+
+              if (i === 0) {
+                context.moveTo(x, y);
+              } else {
+                context.lineTo(x, y);
+              }
+
+              x += sliceWidth;
+            }
+
+            context.lineTo(canvas.width, canvas.height / 2);
+            context.stroke();
+          };
+
+          draw();
+        },
+      },
+    });
+  </script>
+</body>
+</html>
